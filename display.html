@@ -1,0 +1,134 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+</head>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 position;
+    attribute vec3 normal;
+    uniform mat4 projectionMatrix;
+    uniform mat4 viewMatrix;
+    uniform mat4 transformationMatrix;
+    
+    varying vec4 vColor;
+    
+    varying vec3 norm;
+    varying vec4 worldCoordinate;
+    
+    
+    void main(void)
+    {
+        worldCoordinate = transformationMatrix * vec4(position,1.0);
+        gl_Position = projectionMatrix * viewMatrix * worldCoordinate;
+        norm = normalize(transformationMatrix * vec4(normal,0.0)).xyz;
+        
+    }
+</script>
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform vec4 objectColor;
+    uniform float reflexivity;
+    uniform vec4 lightColor[4];
+    uniform float ambientIntensity[4];
+    uniform float diffuseIntensity[4];
+    uniform float specularIntensity[4];
+    uniform vec3 cameraPosition;
+    uniform vec4 lightPos[4];
+    uniform vec3 lightDir[2];
+    uniform float lightCutOff[2];
+    uniform bool isLight;
+    uniform bool isNight;
+    
+    
+    varying vec3 norm;
+    varying vec4 worldCoordinate;
+
+
+    vec4 calculateSpotLight(vec4 lightPos,vec3 lightDir,float lightCutOff,float ambientIntensity,float diffuseIntensity,float specularIntensity)
+    {
+        vec4 vColor = vec4(0.0,0.0,0.0,0.0);
+        vec3 toLightVector = worldCoordinate.xyz - lightPos.xyz;
+        toLightVector = normalize(toLightVector);
+        if (dot(toLightVector,lightDir) >= lightCutOff)
+        {
+            toLightVector = -toLightVector;
+            float attenuation = 1.0 + ( 0.2 * length(toLightVector)) + (0.002 * pow(length(toLightVector),2.0));
+            float diffuseComponent = max(dot(norm,toLightVector),0.0);
+            vec3 toCameraVector = normalize(cameraPosition - worldCoordinate.xyz);
+            vec3 reflexivityVector = reflect(-toLightVector,norm);
+            float specularFactor = max(dot(toCameraVector,reflexivityVector),0.0);
+            float specularCoefficient = pow(specularFactor,reflexivity);
+            vec3 specularComponent = (specularIntensity * specularCoefficient) * lightColor[0].xyz;
+            vColor = vec4((ambientIntensity * objectColor.xyz)  + (diffuseIntensity * diffuseComponent * objectColor.xyz)/attenuation + (specularComponent/attenuation),1.0);
+        }
+    
+        return vColor;
+    }
+
+    vec4 calculateLight(vec4 lightPos,float ambientIntensity,float diffuseIntensity,float specularIntensity)
+    {
+        vec3 toLightVector = normalize(lightPos.xyz);
+        float attenuation = 1.0;
+        if (isNight)
+        {
+            toLightVector = lightPos.xyz - worldCoordinate.xyz;
+            attenuation = 1.0 + ( 0.2 * length(toLightVector)) + (0.002 * pow(length(toLightVector),2.0));
+            toLightVector = normalize(toLightVector);
+        }
+        float diffuseComponent = max(dot(norm,toLightVector),0.0);
+        vec3 toCameraVector = normalize(cameraPosition - worldCoordinate.xyz);
+        vec3 reflexivityVector = reflect(-toLightVector,norm);
+        float specularFactor = max(dot(toCameraVector,reflexivityVector),0.0);
+        float specularCoefficient = pow(specularFactor,reflexivity);
+        vec3 specularComponent = (specularIntensity * specularCoefficient) * lightColor[0].xyz;
+        vec4 vColor = vec4((ambientIntensity * objectColor.xyz)  + (diffuseIntensity * diffuseComponent * objectColor.xyz)/attenuation + (specularComponent/attenuation),1.0);
+        return vColor; 
+    }
+
+
+
+    void main(void)
+    {
+        if (!isLight)
+        {
+            if (!isNight)
+                gl_FragColor = calculateLight(lightPos[0],ambientIntensity[0],diffuseIntensity[0],specularIntensity[0]);
+            else 
+            {
+                vec4 curColor = calculateLight(lightPos[1],ambientIntensity[1],diffuseIntensity[1],specularIntensity[1]);
+                curColor += calculateSpotLight(lightPos[2],lightDir[0],lightCutOff[0],ambientIntensity[1],diffuseIntensity[1],specularIntensity[1]);
+                curColor += calculateSpotLight(lightPos[3],lightDir[1],lightCutOff[1],ambientIntensity[1],diffuseIntensity[1],specularIntensity[1]);
+                gl_FragColor = curColor;
+            }
+        }
+        else
+            gl_FragColor = objectColor;
+    }
+</script>
+<script src = "./shaderProgram.js"></script>
+<script src = "./math.js"></script>
+<script src = "./light.js"></script>
+<script src = "./spotLight.js"></script>
+<script src = "./modelObj.js"></script>
+<script src = "./superModel.js"></script>
+<script src = "./models.js"></script>
+<script src = "./render.js"></script> 
+
+
+<body onload="startGL()">
+	<input type="checkbox" onchange="toggleAnimation()"><b>Animate Scene</b></input>
+    <br>
+    <br>
+    <br>
+    <canvas id="display" width="700" , height="700"></canvas>
+
+
+</body>
+
+
+
+
+</html>
